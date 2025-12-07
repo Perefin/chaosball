@@ -8,12 +8,16 @@ const MODEL_VIDEO = 'veo-3.1-fast-generate-preview'; // Veo Fast
 const MODEL_TTS = 'gemini-2.5-flash-preview-tts';
 
 // Helper to get client
-const getClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getClient = () => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : undefined);
+  if (!apiKey) throw new Error("API Key not found. Please set VITE_GEMINI_API_KEY in .env.local");
+  return new GoogleGenAI({ apiKey });
+};
 
 // 1. Generate the Game Logic (Play result, score, commentary)
 export const generateNextPlay = async (currentState: GameState): Promise<PlayUpdate> => {
   const ai = getClient();
-  
+
   const systemInstruction = `
     You are the engine for 'ChaosBall', an AI sports network.
     Current Game: ${currentState.homeTeam.name} vs ${currentState.awayTeam.name}.
@@ -65,37 +69,37 @@ export const generateNextPlay = async (currentState: GameState): Promise<PlayUpd
 // 2. Generate Keyframe (Nano Banana)
 export const generateKeyframe = async (prompt: string): Promise<string> => {
   const ai = getClient();
-  
+
   // Nano Banana supports text-to-image via generateContent
   // Note: Docs say to use generateContent for Nano Banana
   const response = await ai.models.generateContent({
     model: MODEL_IMAGE,
     contents: prompt,
     config: {
-        // No specific imageConfig for Nano Banana beyond defaults usually, 
-        // but let's ensure we just ask for the content.
+      // No specific imageConfig for Nano Banana beyond defaults usually, 
+      // but let's ensure we just ask for the content.
     }
   });
 
   // Extract image
   for (const part of response.candidates?.[0]?.content?.parts || []) {
     if (part.inlineData && part.inlineData.mimeType.startsWith('image')) {
-       return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
     }
   }
 
   // Fallback check if it returns text instead of image (sometimes happens on error)
   if (response.text) {
-      console.warn("Nano Banana returned text:", response.text);
+    console.warn("Nano Banana returned text:", response.text);
   }
-  
+
   throw new Error("No image generated");
 };
 
 // 3. Generate Video Replay (Veo)
 export const generateReplay = async (prompt: string): Promise<string> => {
   const ai = getClient();
-  
+
   // We need to re-instantiate client or ensure we have the paid key selected in UI before this call
   // This is handled by the component logic ensuring we have a key.
 
@@ -119,7 +123,8 @@ export const generateReplay = async (prompt: string): Promise<string> => {
   if (!videoUri) throw new Error("Video generation failed");
 
   // Append Key for fetch
-  return `${videoUri}&key=${process.env.API_KEY}`;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : undefined);
+  return `${videoUri}&key=${apiKey}`;
 };
 
 // 4. Generate Audio Commentary (TTS)
@@ -153,29 +158,29 @@ export const generateCommentaryAudio = async (text: string): Promise<ArrayBuffer
 
 // 5. Initial Game Setup
 export const generateMatchSetup = async (theme: string): Promise<{ home: Team, away: Team, venue: string }> => {
-    const ai = getClient();
-    const response = await ai.models.generateContent({
-        model: MODEL_LOGIC,
-        contents: `Create two fictional sports teams and a venue based on the theme: "${theme}". Return JSON.`,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    home: { 
-                        type: Type.OBJECT,
-                        properties: { name: {type: Type.STRING}, color: {type: Type.STRING}, mascot: {type: Type.STRING}}
-                    },
-                    away: { 
-                        type: Type.OBJECT,
-                        properties: { name: {type: Type.STRING}, color: {type: Type.STRING}, mascot: {type: Type.STRING}}
-                    },
-                    venue: { type: Type.STRING }
-                }
-            }
+  const ai = getClient();
+  const response = await ai.models.generateContent({
+    model: MODEL_LOGIC,
+    contents: `Create two fictional sports teams and a venue based on the theme: "${theme}". Return JSON.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          home: {
+            type: Type.OBJECT,
+            properties: { name: { type: Type.STRING }, color: { type: Type.STRING }, mascot: { type: Type.STRING } }
+          },
+          away: {
+            type: Type.OBJECT,
+            properties: { name: { type: Type.STRING }, color: { type: Type.STRING }, mascot: { type: Type.STRING } }
+          },
+          venue: { type: Type.STRING }
         }
-    });
-    
-    if (response.text) return JSON.parse(response.text);
-    throw new Error("Failed to generate matchup");
+      }
+    }
+  });
+
+  if (response.text) return JSON.parse(response.text);
+  throw new Error("Failed to generate matchup");
 }

@@ -46,6 +46,12 @@ const App: React.FC = () => {
   // Check API Key Selection on Mount
   useEffect(() => {
     const checkKey = async () => {
+      // 1. Check Local Env
+      if (import.meta.env.VITE_GEMINI_API_KEY) {
+        setHasApiKey(true);
+        return;
+      }
+      // 2. Check AI Studio (if available)
       if (window.aistudio) {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
@@ -86,7 +92,7 @@ const App: React.FC = () => {
         status: 'PLAYING',
         commentary: `We are live from ${setup.venue}! ${setup.home.name} taking on ${setup.away.name}.`
       }));
-      
+
       // Initial Visual
       const img = await generateKeyframe(`Wide shot of futuristic sports arena, ${setup.venue}, crowds cheering, neon lights.`);
       setVisual({ type: 'image', url: img, prompt: 'Arena View' });
@@ -106,7 +112,7 @@ const App: React.FC = () => {
     try {
       // 1. Generate Logic
       const update = await generateNextPlay(gameState);
-      
+
       // 2. Update State immediatley with text
       setGameState(prev => {
         // Simple time decrement logic
@@ -150,30 +156,30 @@ const App: React.FC = () => {
   };
 
   const resolveBets = (hDelta: number, aDelta: number, odds: any) => {
-      // Simple resolution logic for demo purposes
-      // In a real app, this would be complex.
-      // Here we just randomly resolve pending bets if a score happens to simulate excitement
-      if (hDelta > 0 || aDelta > 0) {
-          setBets(prev => prev.map(bet => {
-              if (bet.status !== 'PENDING') return bet;
-              // Very dumb logic: 10% chance to resolve on any score event just for demo flow
-              if (Math.random() > 0.9) {
-                   const won = Math.random() > 0.5;
-                   if (won) setWallet(w => w + (bet.amount * bet.odds));
-                   return { ...bet, status: won ? 'WON' : 'LOST' };
-              }
-              return bet;
-          }));
-      }
+    // Simple resolution logic for demo purposes
+    // In a real app, this would be complex.
+    // Here we just randomly resolve pending bets if a score happens to simulate excitement
+    if (hDelta > 0 || aDelta > 0) {
+      setBets(prev => prev.map(bet => {
+        if (bet.status !== 'PENDING') return bet;
+        // Very dumb logic: 10% chance to resolve on any score event just for demo flow
+        if (Math.random() > 0.9) {
+          const won = Math.random() > 0.5;
+          if (won) setWallet(w => w + (bet.amount * bet.odds));
+          return { ...bet, status: won ? 'WON' : 'LOST' };
+        }
+        return bet;
+      }));
+    }
   };
 
   const handlePlaceBet = (type: Bet['type'], amount: number, odds: number) => {
     const newBet: Bet = {
-        id: Date.now().toString(),
-        type,
-        amount,
-        odds,
-        status: 'PENDING'
+      id: Date.now().toString(),
+      type,
+      amount,
+      odds,
+      status: 'PENDING'
     };
     setWallet(prev => prev - amount);
     setBets(prev => [newBet, ...prev]);
@@ -182,16 +188,16 @@ const App: React.FC = () => {
   const triggerInstantReplay = async () => {
     if (!visual?.prompt) return;
     if (veoLoading) return;
-    
+
     setVeoLoading(true);
     try {
-        const videoUri = await generateReplay(visual.prompt);
-        setVisual({ type: 'video', url: videoUri, prompt: visual.prompt });
+      const videoUri = await generateReplay(visual.prompt);
+      setVisual({ type: 'video', url: videoUri, prompt: visual.prompt });
     } catch (e) {
-        console.error("Replay failed", e);
-        alert("Replay generation failed (check console/API key quota)");
+      console.error("Replay failed", e);
+      alert("Replay generation failed (check console/API key quota)");
     } finally {
-        setVeoLoading(false);
+      setVeoLoading(false);
     }
   }
 
@@ -202,9 +208,9 @@ const App: React.FC = () => {
         <h1 className="text-4xl font-bold mb-4 text-cyan-400 font-mono">CHAOSBALL NETWORK</h1>
         <p className="max-w-md mb-8 text-slate-400">
           Access requires a paid API key for Veo video generation.
-          <br/><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="underline text-cyan-600">Billing Docs</a>
+          <br /><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="underline text-cyan-600">Billing Docs</a>
         </p>
-        <button 
+        <button
           onClick={handleSelectKey}
           className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded shadow-[0_0_20px_rgba(8,145,178,0.5)] transition-all"
         >
@@ -221,67 +227,67 @@ const App: React.FC = () => {
 
       {/* 2. Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
-        
+
         {/* Left: Broadcast Area */}
         <div className="flex-1 p-6 flex flex-col items-center justify-center relative overflow-y-auto">
-           
-           <div className="w-full max-w-5xl mb-6">
-              <BroadcastScreen 
-                visual={visual} 
-                isLoading={isProcessing && !visual?.url}
-                onScreenText={gameState.commentary}
-              />
-           </div>
 
-           {/* Game Controls */}
-           <div className="flex gap-4 mb-8">
-              {gameState.status === 'IDLE' ? (
-                  <button 
-                    onClick={initializeMatch}
-                    disabled={isProcessing}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-500 px-8 py-4 rounded font-bold text-xl uppercase shadow-lg disabled:opacity-50"
-                  >
-                    {isProcessing ? <RefreshCw className="animate-spin"/> : <Play />}
-                    Initialize Match
-                  </button>
-              ) : (
-                  <>
-                    <button 
-                        onClick={nextPlay}
-                        disabled={isProcessing || veoLoading}
-                        className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded font-bold text-xl uppercase shadow-[0_0_15px_rgba(234,179,8,0.4)] disabled:opacity-50 transition-all active:scale-95"
-                    >
-                        {isProcessing ? <RefreshCw className="animate-spin"/> : <Zap fill="black"/>}
-                        Run Next Play
-                    </button>
+          <div className="w-full max-w-5xl mb-6">
+            <BroadcastScreen
+              visual={visual}
+              isLoading={isProcessing && !visual?.url}
+              onScreenText={gameState.commentary}
+            />
+          </div>
 
-                    <button
-                        onClick={triggerInstantReplay}
-                        disabled={isProcessing || veoLoading || !visual}
-                        className="flex items-center gap-2 bg-purple-700 hover:bg-purple-600 px-6 py-4 rounded font-bold text-lg uppercase shadow-lg disabled:opacity-50 disabled:grayscale transition-all"
-                    >
-                        {veoLoading ? <RefreshCw className="animate-spin"/> : <Video />}
-                        Generate Replay (Veo)
-                    </button>
-                  </>
-              )}
-           </div>
+          {/* Game Controls */}
+          <div className="flex gap-4 mb-8">
+            {gameState.status === 'IDLE' ? (
+              <button
+                onClick={initializeMatch}
+                disabled={isProcessing}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-500 px-8 py-4 rounded font-bold text-xl uppercase shadow-lg disabled:opacity-50"
+              >
+                {isProcessing ? <RefreshCw className="animate-spin" /> : <Play />}
+                Initialize Match
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={nextPlay}
+                  disabled={isProcessing || veoLoading}
+                  className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded font-bold text-xl uppercase shadow-[0_0_15px_rgba(234,179,8,0.4)] disabled:opacity-50 transition-all active:scale-95"
+                >
+                  {isProcessing ? <RefreshCw className="animate-spin" /> : <Zap fill="black" />}
+                  Run Next Play
+                </button>
 
-           {/* Status Log */}
-           <div className="w-full max-w-4xl bg-slate-900 rounded p-4 border border-slate-800 h-32 overflow-y-auto font-mono text-sm text-slate-400">
-                <div className="text-xs uppercase font-bold text-slate-500 mb-2 sticky top-0 bg-slate-900">Game Log</div>
-                <p> &gt; {gameState.lastPlayDescription}</p>
-                <p> &gt; Visual Prompt: {visual?.prompt}</p>
-           </div>
+                <button
+                  onClick={triggerInstantReplay}
+                  disabled={isProcessing || veoLoading || !visual}
+                  className="flex items-center gap-2 bg-purple-700 hover:bg-purple-600 px-6 py-4 rounded font-bold text-lg uppercase shadow-lg disabled:opacity-50 disabled:grayscale transition-all"
+                >
+                  {veoLoading ? <RefreshCw className="animate-spin" /> : <Video />}
+                  Generate Replay (Veo)
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Status Log */}
+          <div className="w-full max-w-4xl bg-slate-900 rounded p-4 border border-slate-800 h-32 overflow-y-auto font-mono text-sm text-slate-400">
+            <div className="text-xs uppercase font-bold text-slate-500 mb-2 sticky top-0 bg-slate-900">Game Log</div>
+            <p> &gt; {gameState.lastPlayDescription}</p>
+            <p> &gt; Visual Prompt: {visual?.prompt}</p>
+          </div>
 
         </div>
 
         {/* Right: Betting Panel */}
-        <BettingPanel 
-            gameState={gameState} 
-            wallet={wallet} 
-            bets={bets} 
-            onPlaceBet={handlePlaceBet}
+        <BettingPanel
+          gameState={gameState}
+          wallet={wallet}
+          bets={bets}
+          onPlaceBet={handlePlaceBet}
         />
       </div>
     </div>
